@@ -16,15 +16,20 @@ function AppNotFoundError(message) {
 
   return error;
 }
+
+function parseExt(archivePath) {
+  return archivePath.match(/(\.tar|\.tar\.gz|\.zip)$/)[0];
+}
 /*
  * Downloader class that downloads the latest version of the deployed
- * app from S3 and unzips it.
+ * app from S3 and extracts it.
  */
 class S3Downloader {
   constructor(options) {
     this.ui = options.ui;
     this.configBucket = options.bucket;
     this.configKey = options.key;
+    this.currentPath = options.currentPath || 'current';
   }
 
   download() {
@@ -34,16 +39,9 @@ class S3Downloader {
     }
 
     return this.fetchCurrentVersion()
-      .then(() => this.removeOldApp())
-      .then(() => this.downloadAppZip())
-      .then(() => this.unzipApp())
-      .then(() => this.installNPMDependencies())
-      .then(() => this.outputPath);
-  }
-
-  removeOldApp() {
-    this.ui.writeLine('removing ' + this.outputPath);
-    return fsp.remove(this.outputPath);
+      .then(() => this.downloadAppArchive())
+      .then(() => this.symlink())
+      .then(() => this.currentPath);
   }
 
   fetchCurrentVersion() {
@@ -64,40 +62,83 @@ class S3Downloader {
 
         this.appBucket = config.bucket;
         this.appKey = config.key;
-        this.zipPath = path.basename(config.key);
-        this.outputPath = outputPathFor(this.zipPath);
+        this.archivePath = path.basename(config.key);
       });
   }
 
-  downloadAppZip() {
-    return new Promise((res, rej) => {
-      let bucket = this.appBucket;
-      let key = this.appKey;
+  downloadAppArchive() {
+    let ext = parseExt(this.archivePath);
+    let newPath = path.basename(this.archivePath, ext);
 
-      let params = {
-        Bucket: bucket,
-        Key: key
-      };
-
-      let zipPath = this.zipPath;
-      let file = fs.createWriteStream(zipPath);
-      let request = s3.getObject(params);
-
-      this.ui.writeLine("saving S3 object " + bucket + "/" + key + " to " + zipPath);
-
-      request.createReadStream().pipe(file)
-        .on('close', res)
-        .on('error', rej);
-    });
-  }
-
-  unzipApp() {
-    let zipPath = this.zipPath;
-
-    return this.exec('unzip ' + zipPath)
+    return fsp.stat(newPath)
       .then(() => {
-        this.ui.writeLine("unzipped " + zipPath);
+        this.ui.writeLine('app alrady exists, skipping download');
+        this.outputPath = newPath
+        return this.outputPath;
+      })
+      .catch(() => {
+	 return new Promise((res, rej) => {
+	   let bucket = this.appBucket;
+	   let key = this.appKey;
+
+	   let params = {
+	     Bucket: bucket,
+	     Key: key
+	   };
+
+	   let archivePath = this.archivePath;
+	   let file = fs.createWriteStream(archivePath);
+	   let request = s3.getObject(params);
+
+	   this.ui.writeLine("saving S3 object " + bucket + "/" + key + " to " + archivePath);
+
+	   request.createReadStream().pipe(file)
+             .on('close', res)
+             .on('error', rej);
+	 })
+	 .then(() => this.extractApp())
+         .then(() => this.cleanupArchive())
+	 .then(() => this.renameAppPath())
+	 .then(() => this.installNPMDependencies());
       });
+  }
+
+  extractApp() {
+    let archivePath = this.archivePath;
+    let cmds = {
+      '.zip': 'unzip',
+      '.tar': 'tar -xvf',
+      '.tar.gz': 'tar -xvf'
+    };
+
+    let cmd = cmds[parseExt(archivePath)];
+
+    this.ui.writeLine(`extracting archive...`);
+    return this.exec(`${cmd} ${archivePath}`)
+      .then(() => {
+        this.ui.writeLine(`extracted ${archivePath}`);
+      });
+  }
+
+  cleanupArchive() {
+    return fsp.unlink(this.archivePath, function() {});
+  }
+
+  renameAppPath() {
+    let ext = parseExt(this.archivePath);
+    this.outputPath  = path.basename(this.archivePath, ext);
+    return fsp.rename('deploy-dist', this.outputPath)
+      .catch((error) => {
+        this.ui.writeLine(error);
+      });
+  }
+
+  symlink() {
+    try {
+      fs.unlink(this.currentPath);
+    } finally {
+      return fsp.symlink(this.outputPath, this.currentPath);
+    }
   }
 
   installNPMDependencies() {
@@ -121,8 +162,9 @@ class S3Downloader {
   }
 }
 
-function outputPathFor(zipPath) {
-  let name = path.basename(zipPath, '.zip');
+function outputPathFor(archivePath) {
+  let ext = parseExt(archivePath);
+  let name = path.basename(archivePath, ext);
 
   // Remove MD5 hash
   return name.split('-').slice(0, -1).join('-');
