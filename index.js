@@ -5,6 +5,7 @@ const fs = require('fs');
 const path = require('path');
 const fsp  = require('fs-promise');
 const exec = require('child_process').exec;
+const AdmZip = require('adm-zip');
 
 const s3 = new AWS.S3({
   apiVersion: '2006-03-01',
@@ -97,12 +98,8 @@ class S3Downloader {
   }
 
   unzipApp() {
-    let zipPath = this.zipPath;
-
-    return this.exec('unzip ' + zipPath)
-      .then(() => {
-        this.ui.writeLine("unzipped " + zipPath);
-      });
+    var zip = new AdmZip( this.zipPath; );
+    zip.extractAllTo("./", true);
   }
 
   installNPMDependencies() {
