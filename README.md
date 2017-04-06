@@ -11,7 +11,8 @@ To use the downloader, configure it with an S3 bucket and key:
 ```js
 let downloader = new S3Downloader({
   bucket: S3_BUCKET,
-  key: S3_KEY
+  key: S3_KEY,
+  buildDir: OPTIONAL_BUILD_DIR
 });
 
 let server = new FastBootAppServer({
@@ -37,6 +38,15 @@ Why this layer of indirection? By configuring the app server to look in
 a static location on S3, you don't need to propagate config changes to
 all of your app servers when you deploy a new version. Instead, they can
 just grab a fixed file to determine the current version.
+
+
+### AWS Authentication
+
+The downloader used [aws-sdk](https://github.com/aws/aws-sdk-js) to download the zip. For information on authentication please see [Setting Credentials in Node.js](http://docs.aws.amazon.com/sdk-for-javascript/v2/developer-guide/setting-credentials-node.html)
+
+### Upload Structure
+
+Ideally zips sound be the zipped 'dist/' folder your ember build. You can also upload the build folder's zipped contents and set a custom `buildDir` in the options.
 
 If you like this, you may also be interested in the companion
 [fastboot-s3-notifier](https://github.com/tomdale/fastboot-s3-notifier).

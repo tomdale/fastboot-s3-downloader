@@ -5,6 +5,10 @@ const fs = require('fs');
 const path = require('path');
 const fsp  = require('fs-promise');
 const exec = require('child_process').exec;
+const AdmZip = require('adm-zip');
+
+// suggestion that this eventually become 'dist/'
+const defaultDist = '';
 
 const s3 = new AWS.S3({
   apiVersion: '2006-03-01',
@@ -26,6 +30,7 @@ class S3Downloader {
     this.ui = options.ui;
     this.configBucket = options.bucket;
     this.configKey = options.key;
+    this.buildDir = options.buildDir;
   }
 
   download() {
@@ -70,7 +75,7 @@ class S3Downloader {
         this.appBucket = config.bucket;
         this.appKey = config.key;
         this.zipPath = path.basename(config.key);
-        this.outputPath = outputPathFor(this.zipPath);
+        this.outputPath = this.outputPathFor(this.zipPath);
       });
   }
 
@@ -97,15 +102,29 @@ class S3Downloader {
   }
 
   unzipApp() {
-    let zipPath = this.zipPath;
+    let zip = new AdmZip( this.zipPath );
+    let zipEntries = zip.getEntries();
+    let outputPath = this.outputPath;
 
-    return this.exec('unzip ' + zipPath)
-      .then(() => {
-        this.ui.writeLine("unzipped " + zipPath);
-      });
+    // sanity check to see if someone has zipped the 'dist/' folder
+    if ( zipEntries[0].entryName.match(/^dist\//) ) {
+      if ( outputPath !== 'dist/' ) {
+
+        this.ui.writeError('missmatch with buildDir and zip');
+        this.ui.writeError('zip unpacks to dist/ but buildDir = ' + outputPath);
+        this.ui.writeError('changing to dist/ and retrying');
+
+        this.set('buildDir', 'dist/');
+        return this.download();
+      } else {
+        outputPath = './';
+      }
+    }
+
+    zip.extractAllTo( outputPath, true);
   }
 
-  installNPMDependencies() {
+  installNPMDependencies( ) {
     return this.exec(`cd ${this.outputPath} && npm install`)
       .then(() => this.ui.writeLine('installed npm dependencies'))
       .catch(() => this.ui.writeError('unable to install npm dependencies'));
@@ -115,7 +134,6 @@ class S3Downloader {
     return new Promise((resolve, reject) => {
       exec(command, (error, stdout, stderr) => {
         if (error) {
-          this.ui.writeError(`error running command ${command}`);
           this.ui.writeError(stderr);
           reject(error);
         } else {
@@ -124,13 +142,26 @@ class S3Downloader {
       });
     });
   }
-}
 
-function outputPathFor(zipPath) {
-  let name = path.basename(zipPath, '.zip');
+  outputPathFor(zipPath) {
+    let name = path.basename(zipPath, '.zip');
+    const md5Check = /^[a-f0-9]{32}$/;
 
-  // Remove MD5 hash
-  return name.split('-').slice(0, -1).join('-');
+    var dir = defaultDist;
+
+    if ( this.buildDir !== undefined ) {
+      dir = this.buildDir
+      if (dir.substr(-1) !== '/') dir += '/';
+      console.log( dir )
+    }
+
+    // remove md5 hash if present
+    var split = name.split('-');
+    if( split[split.length-1].match(md5Check) ){ split = split.slice(0, -1) }
+
+    return ( dir + split.join('-') );
+  }
+
 }
 
 module.exports = S3Downloader;
