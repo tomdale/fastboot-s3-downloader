@@ -7,6 +7,7 @@ const fsp  = require('fs-promise');
 const exec = require('child_process').exec;
 const AdmZip = require('adm-zip');
 
+// suggestion that this eventually become 'dist/'
 const defaultDist = '';
 
 const s3 = new AWS.S3({
@@ -113,7 +114,7 @@ class S3Downloader {
         this.ui.writeError('zip unpacks to dist/ but buildDir = ' + outputPath);
         this.ui.writeError('changing to dist/ and retrying');
 
-        this.buildDir = 'dist/';
+        this.set('buildDir', 'dist/');
         return this.download();
       } else {
         outputPath = './';
@@ -144,14 +145,21 @@ class S3Downloader {
 
   outputPathFor(zipPath) {
     let name = path.basename(zipPath, '.zip');
+    const md5Check = /^[a-f0-9]{32}$/;
+
     var dir = defaultDist;
 
-    if ( this.buildDir ) {
+    if ( this.buildDir !== undefined ) {
       dir = this.buildDir
       if (dir.substr(-1) !== '/') dir += '/';
+      console.log( dir )
     }
 
-    return ( dir + name.split('-').slice(0, -1).join('-') );
+    // remove md5 hash if present
+    var split = name.split('-');
+    if( split[split.length-1].match(md5Check) ){ split = split.slice(0, -1) }
+
+    return ( dir + split.join('-') );
   }
 
 }
