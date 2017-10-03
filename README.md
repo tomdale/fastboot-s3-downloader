@@ -14,7 +14,8 @@ let downloader = new S3Downloader({
   key: S3_KEY,
   accessKeyId: AWS_KEY, // optional
   secretAccessKey: AWS_SECRET, // optional
-  region: AWS_REGION // optional
+  region: AWS_REGION, // optional
+  endpoint: AWS_ENDPOINT_URL // optional
 });
 
 let server = new FastBootAppServer({
