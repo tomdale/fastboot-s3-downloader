@@ -20,14 +20,11 @@ class S3Downloader {
   constructor(options) {
     this.ui = options.ui;
     this.configBucket = options.bucket;
-    this.configKey = options.key;
-    this.s3 = new AWS.S3({
+    this.configKey = options.key;    
+    this.s3 = new AWS.S3(Object.assign(options.s3_options || {}, {
       apiVersion: '2006-03-01',
-      signatureVersion: 'v4',
-      accessKeyId: options.accessKeyId,
-      secretAccessKey: options.secretAccessKey,
-      region: options.region
-    });
+      signatureVersion: 'v4'
+    }));
   }
 
   download() {
