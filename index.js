@@ -41,6 +41,7 @@ class S3Downloader {
       .then(() => this.downloadAppZip())
       .then(() => this.unzipApp())
       .then(() => this.installNPMDependencies())
+      .then(() => this.removeAppZip())
       .then(() => this.outputPath);
   }
 
@@ -105,6 +106,13 @@ class S3Downloader {
       .then(() => {
         this.ui.writeLine("unzipped " + zipPath);
       });
+  }
+
+  removeAppZip() {
+    let zipPath = this.zipPath;
+
+    this.ui.writeLine('removing ' + this.zipPath);
+    return fsp.remove(this.zipPath);
   }
 
   installNPMDependencies() {
