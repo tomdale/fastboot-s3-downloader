@@ -23,7 +23,7 @@
   },
   "homepage": "https://github.com/tomdale/fastboot-s3-downloader#readme",
   "dependencies": {
-    "aws-sdk": "^2.3.4",
-    "fs-promise": "^0.5.0"
+    "aws-sdk": "^2.315.0",
+    "fs-extra": "^7.0.0"
   }
 }
