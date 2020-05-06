@@ -26,7 +26,8 @@ class S3Downloader {
       signatureVersion: 'v4',
       accessKeyId: options.accessKeyId,
       secretAccessKey: options.secretAccessKey,
-      region: options.region
+      region: options.region,
+      endpoint: options.endpoint
     });
   }
 
