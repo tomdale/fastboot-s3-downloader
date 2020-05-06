@@ -42,4 +42,4 @@ all of your app servers when you deploy a new version. Instead, they can
 just grab a fixed file to determine the current version.
 
 If you like this, you may also be interested in the companion
-[fastboot-s3-notifier](https://github.com/tomdale/fastboot-s3-notifier).
+[fastboot-s3-notifier](https://github.com/ember-fastboot/fastboot-s3-notifier).
